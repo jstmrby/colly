@@ -856,6 +856,9 @@ func (c *Collector) checkRobots(u *url.URL) error {
 	if !uaGroup.Test(eu) {
 		return ErrRobotsTxtBlocked
 	}
+	if uaGroup.CrawlDelay > 0 {
+		c.Limit(&LimitRule{DomainGlob: u.Host, Delay: uaGroup.CrawlDelay, Parallelism: 1})
+	}
 	return nil
 }
 
@@ -1468,7 +1471,6 @@ func createMultipartReader(boundary string, data map[string][]byte) io.Reader {
 	}
 	buffer.WriteString(dashBoundary + "--\n\n")
 	return bytes.NewReader(buffer.Bytes())
-
 }
 
 // randomBoundary was borrowed from

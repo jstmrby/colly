@@ -35,15 +35,24 @@ import (
 	"github.com/gocolly/colly/v2/debug"
 )
 
-var serverIndexResponse = []byte("hello world\n")
-var robotsFile = `
+var (
+	serverIndexResponse = []byte("hello world\n")
+	robotsFile          = `
 User-agent: *
 Allow: /allowed
 Disallow: /disallowed
 Disallow: /allowed*q=
 `
+	robotsFileWithDelay = `
+User-agent: *
+Crawl-delay: 3
+Allow: /allowed
+Disallow: /disallowed
+Disallow: /allowed*q=
+`
+)
 
-func newUnstartedTestServer() *httptest.Server {
+func newUnstartedTestServer(robotsFile string) *httptest.Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +119,6 @@ func newUnstartedTestServer() *httptest.Server {
 			destination = d
 		}
 		http.Redirect(w, r, destination, http.StatusSeeOther)
-
 	}))
 
 	mux.Handle("/redirected/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +274,13 @@ y">link</a>
 }
 
 func newTestServer() *httptest.Server {
-	srv := newUnstartedTestServer()
+	srv := newUnstartedTestServer(robotsFile)
+	srv.Start()
+	return srv
+}
+
+func newTestServerWithCrawlingDelay() *httptest.Server {
+	srv := newUnstartedTestServer(robotsFileWithDelay)
 	srv.Start()
 	return srv
 }
@@ -734,7 +748,6 @@ func TestCollectorURLRevisitCheck(t *testing.T) {
 	c := NewCollector()
 
 	visited, err := c.HasVisited(ts.URL)
-
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -746,7 +759,6 @@ func TestCollectorURLRevisitCheck(t *testing.T) {
 	c.Visit(ts.URL)
 
 	visited, err = c.HasVisited(ts.URL)
-
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -795,7 +807,7 @@ func TestSetCookieRedirect(t *testing.T) {
 		requireSessionCookieAuthPage,
 	} {
 		t.Run("", func(t *testing.T) {
-			ts := newUnstartedTestServer()
+			ts := newUnstartedTestServer(robotsFile)
 			ts.Config.Handler = m(ts.Config.Handler)
 			ts.Start()
 			defer ts.Close()
@@ -827,7 +839,6 @@ func TestCollectorPostURLRevisitCheck(t *testing.T) {
 	}
 
 	posted, err := c.HasPosted(ts.URL+"/login", postData)
-
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -839,7 +850,6 @@ func TestCollectorPostURLRevisitCheck(t *testing.T) {
 	c.Post(ts.URL+"/login", postData)
 
 	posted, err = c.HasPosted(ts.URL+"/login", postData)
-
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -850,7 +860,6 @@ func TestCollectorPostURLRevisitCheck(t *testing.T) {
 
 	postData["lastname"] = "world"
 	posted, err = c.HasPosted(ts.URL+"/login", postData)
-
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -862,7 +871,6 @@ func TestCollectorPostURLRevisitCheck(t *testing.T) {
 	c.Post(ts.URL+"/login", postData)
 
 	posted, err = c.HasPosted(ts.URL+"/login", postData)
-
 	if err != nil {
 		t.Error(err.Error())
 	}
@@ -891,7 +899,6 @@ func TestCollectorURLRevisitDomainDisallowed(t *testing.T) {
 	if got, want := err, ErrForbiddenDomain; got != want {
 		t.Fatalf("wrong error on second visit: got=%v want=%v", got, want)
 	}
-
 }
 
 func TestCollectorPost(t *testing.T) {
@@ -1160,7 +1167,6 @@ func TestRobotsWhenAllowed(t *testing.T) {
 	})
 
 	err := c.Visit(ts.URL + "/allowed")
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1214,11 +1220,9 @@ func TestIgnoreRobotsWhenDisallowed(t *testing.T) {
 	})
 
 	err := c.Visit(ts.URL + "/disallowed")
-
 	if err != nil {
 		t.Fatal(err)
 	}
-
 }
 
 func TestConnectionErrorOnRobotsTxtResultsInError(t *testing.T) {
@@ -1401,7 +1405,6 @@ func TestParseHTTPErrorResponse(t *testing.T) {
 	if contentCount != 1 {
 		t.Fatal("Content isn't parsed with ParseHTTPErrorResponse enabled")
 	}
-
 }
 
 func TestHTMLElement(t *testing.T) {
@@ -1664,7 +1667,6 @@ func TestCollectorContext(t *testing.T) {
 	if !onErrorCalled {
 		t.Error("OnError was not called")
 	}
-
 }
 
 func BenchmarkOnHTML(b *testing.B) {
@@ -1762,6 +1764,7 @@ func TestCollectorPostRetry(t *testing.T) {
 		t.Error("OnResponse Retry was not called")
 	}
 }
+
 func TestCollectorGetRetry(t *testing.T) {
 	ts := newTestServer()
 	defer ts.Close()
